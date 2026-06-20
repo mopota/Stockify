@@ -1,0 +1,69 @@
+name: stockify
+description: Stockify - Product & Inventory Management App
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+
+  # State Management
+  bloc: ^9.1.0
+  flutter_bloc: ^9.1.1
+  get_it: ^9.2.0
+
+  # Network & Storage
+  http: ^1.6.0
+  shared_preferences: ^2.5.4
+  intl: ^0.20.2
+
+  # Images
+  image_picker: ^1.2.1
+  image_cropper: ^11.0.0
+  cached_network_image: ^3.4.1
+  permission_handler: ^12.0.1
+  flutter_native_splash: ^2.4.7
+  flutter_stripe: ^12.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icon/
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+
+flutter_native_splash:
+  color: "#6C4CFF"          # نفس لون Stockify
+  image: assets/icon/splash_icon.png
+
+  android_12:
+    color: "#6C4CFF"
+    image: assets/icon/splash_icon.png
+
+  fullscreen: true
