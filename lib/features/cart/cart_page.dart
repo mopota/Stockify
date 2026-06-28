@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/utils/constants/constants.dart';
 import '../cubit/cubit.dart';
 import '../cubit/state.dart';
 import 'checkout_page.dart';
@@ -23,15 +24,15 @@ class CartPage extends StatelessWidget {
                 Icon(Icons.shopping_cart_outlined, size: 100, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5)),
                 const SizedBox(height: 16),
                 Text(
-                  "Your cart is empty",
+                  appTranslation().get("cart_empty"),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                const Text("Looks like you haven't added anything to your cart yet."),
+                Text(appTranslation().get("cart_empty_msg")),
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: () => cubit.changeBottomNav(0),
-                  child: const Text("Start Shopping"),
+                  child: Text(appTranslation().get("start_shopping")),
                 ),
               ],
             ),
@@ -168,13 +169,13 @@ class CartPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildPriceRow(context, "Subtotal", "\$${subtotal.toStringAsFixed(2)}"),
+            _buildPriceRow(context, appTranslation().get("subtotal"), "\$${subtotal.toStringAsFixed(2)}"),
             const SizedBox(height: 8),
-            _buildPriceRow(context, "Shipping", "\$${shipping.toStringAsFixed(2)}"),
+            _buildPriceRow(context, appTranslation().get("shipping"), "\$${shipping.toStringAsFixed(2)}"),
             const SizedBox(height: 12),
             const Divider(),
             const SizedBox(height: 12),
-            _buildPriceRow(context, "Total", "\$${total.toStringAsFixed(2)}", isTotal: true),
+            _buildPriceRow(context, appTranslation().get("total"), "\$${total.toStringAsFixed(2)}", isTotal: true),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -184,7 +185,10 @@ class CartPage extends StatelessWidget {
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text("Checkout", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(
+                  appTranslation().get("checkout"),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],
@@ -232,12 +236,15 @@ class CartPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Shipping Address", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              appTranslation().get("shipping_addresses"),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 24),
             TextField(
               controller: addressController,
               decoration: InputDecoration(
-                labelText: "Full Address",
+                labelText: appTranslation().get("full_address"),
                 prefixIcon: const Icon(Icons.location_on_outlined),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -246,7 +253,7 @@ class CartPage extends StatelessWidget {
             TextField(
               controller: phoneController,
               decoration: InputDecoration(
-                labelText: "Phone Number",
+                labelText: appTranslation().get("phone_number"),
                 prefixIcon: const Icon(Icons.phone_outlined),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -275,7 +282,7 @@ class CartPage extends StatelessWidget {
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text("Continue to Payment"),
+                child: Text(appTranslation().get("continue_payment")),
               ),
             ),
           ],

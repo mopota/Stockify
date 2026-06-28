@@ -4,27 +4,47 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../core/network/local/cache_helper.dart';
+import '../../core/network/local/product_cache.dart';
+import '../../core/utils/constants/roles.dart';
 import '../../core/utils/constants/translations.dart';
 import '../../data/models/cart_item_model.dart';
 import '../../data/models/category_model.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/cart_repository.dart';
+import '../../data/repositories/order_repository.dart';
 import '../../data/repositories/products_repository.dart';
 import '../../data/models/product_model.dart';
 import 'state.dart';
 
 class AppCubit extends Cubit<AppStates> {
-  AppCubit() : super(AppInitialState()) {
+  final AuthRepository _authRepo;
+  final ProductsRepository _productsRepo;
+  final CartRepository _cartRepo;
+  final OrderRepository _orderRepo;
+
+  AppCubit({
+    required AuthRepository authRepo,
+    required ProductsRepository productsRepo,
+    required CartRepository cartRepo,
+    required OrderRepository orderRepo,
+  })  : _authRepo = authRepo,
+        _productsRepo = productsRepo,
+        _cartRepo = cartRepo,
+        _orderRepo = orderRepo,
+        super(AppInitialState()) {
     initApp();
   }
 
   static AppCubit get(BuildContext context) => BlocProvider.of(context);
 
   final _firestore = FirebaseFirestore.instance;
-  final _productsRepo = ProductsRepository();
 
   // --- Products & Categories ---
   final List<ProductModel> _products = [];
@@ -36,6 +56,14 @@ class AppCubit extends Cubit<AppStates> {
   StreamSubscription? _categoriesSub;
 
   void listenToProducts() {
+    // Load from cache immediately
+    final cached = ProductCache.getProducts();
+    if (cached.isNotEmpty) {
+      _products.clear();
+      _products.addAll(cached);
+      emit(AppProductsLoadedState());
+    }
+
     _productsSub?.cancel();
     _productsSub = _productsRepo.watchProducts().listen((data) {
       _products.clear();
@@ -62,26 +90,47 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   List<ProductModel> productsByCategory(CategoryModel category) {
-    if (category.id == "all") return _products;
-    return _products.where((p) => p.category == category.name).toList();
+    List<ProductModel> list = _products;
+    // Non-admins only see approved products
+    if (!isAdminRole) {
+      list = list.where((p) => p.isApproved).toList();
+    }
+    if (category.id == "all") return list;
+    return list.where((p) => p.category == category.name).toList();
   }
 
-  // --- Authentication ---
+  // --- Authentication & RBAC ---
   Map<String, dynamic>? currentUserData;
-  bool get isAdmin => currentUserData?['isAdmin'] ?? false;
+  
+  String get userRole => currentUserData?['role'] ?? AppRoles.user;
+  
+  bool get isSuperAdmin => userRole == AppRoles.superAdmin || 
+      FirebaseAuth.instance.currentUser?.email == AppRoles.superAdminEmail;
+      
+  bool get isAdminRole => userRole == AppRoles.admin || isSuperAdmin;
+
+  bool hasPermission(String permission) {
+    if (isSuperAdmin) return true;
+    final List<dynamic> permissions = currentUserData?['permissions'] ?? [];
+    return permissions.contains(permission);
+  }
+
   StreamSubscription<User?>? _authSub;
   StreamSubscription<DocumentSnapshot>? _userSub;
 
   void listenToAuthState() {
     _authSub?.cancel();
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSub = _authRepo.authStateChanges.listen((user) {
       if (user != null) {
         listenToCart();
         listenToFavorites();
         listenToUserData();
         _userSub?.cancel();
-        _userSub = _firestore.collection('users').doc(user.uid).snapshots().listen((doc) {
+        _userSub = _authRepo.watchUserData(user.uid).listen((doc) {
           currentUserData = doc.data() as Map<String, dynamic>?;
+          if (currentUserData?['isBanned'] == true) {
+            logout();
+          }
           emit(AppUserDataLoadedState());
         });
       } else {
@@ -101,10 +150,19 @@ class AppCubit extends Cubit<AppStates> {
   Future<void> login({required String email, required String password}) async {
     emit(AppLoginLoadingState());
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
+      final credential = await _authRepo.login(
+        email: email,
+        password: password,
       );
+      
+      // Check if banned
+      final userDoc = await _firestore.collection('users').doc(credential.user?.uid).get();
+      if (userDoc.exists && userDoc.data()?['isBanned'] == true) {
+        await logout();
+        emit(AppLoginErrorState("Your account has been banned."));
+        return;
+      }
+
       emit(AppLoginSuccessState());
     } on FirebaseAuthException catch (e) {
       emit(AppLoginErrorState(e.message ?? "Login failed"));
@@ -114,22 +172,7 @@ class AppCubit extends Cubit<AppStates> {
   Future<void> register({required String email, required String password, required String name}) async {
     emit(AppRegisterLoadingState());
     try {
-      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
-      );
-      
-      final user = credential.user!;
-      await user.updateDisplayName(name);
-
-      await _firestore.collection('users').doc(user.uid).set({
-        'uid': user.uid,
-        'email': email.trim(),
-        'name': name,
-        'isAdmin': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      
+      await _authRepo.register(email: email, password: password, name: name);
       emit(AppRegisterSuccessState());
     } on FirebaseAuthException catch (e) {
       emit(AppRegisterErrorState(e.message ?? "Register failed"));
@@ -137,7 +180,7 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   Future<void> logout() async {
-    await FirebaseAuth.instance.signOut();
+    await _authRepo.logout();
     emit(AppLogoutSuccessState());
   }
 
@@ -155,8 +198,8 @@ class AppCubit extends Cubit<AppStates> {
       return;
     }
     _cartSub?.cancel();
-    _cartSub = _firestore.collection('users').doc(user.uid).collection('cart').snapshots().listen((snapshot) {
-      _cartItemsList = snapshot.docs.map((doc) => CartItem.fromJson(doc.data())).toList();
+    _cartSub = _cartRepo.watchCart(user.uid).listen((items) {
+      _cartItemsList = items;
       emit(AppCartChangedState());
     });
   }
@@ -164,16 +207,7 @@ class AppCubit extends Cubit<AppStates> {
   void addProductToCart(ProductModel product) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final ref = _firestore.collection('users').doc(user.uid).collection('cart').doc(product.id);
-    final doc = await ref.get();
-    if (doc.exists) {
-      await ref.update({'quantity': FieldValue.increment(1)});
-    } else {
-      await ref.set({
-        'product': product.toJson()..['id'] = product.id,
-        'quantity': 1,
-      });
-    }
+    await _cartRepo.addToCart(user.uid, product);
   }
 
   void increaseCartQty(ProductModel product) => addProductToCart(product);
@@ -181,22 +215,13 @@ class AppCubit extends Cubit<AppStates> {
   void decreaseCartQty(ProductModel product) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final ref = _firestore.collection('users').doc(user.uid).collection('cart').doc(product.id);
-    final doc = await ref.get();
-    if (doc.exists) {
-      int qty = doc.data()?['quantity'] ?? 1;
-      if (qty > 1) {
-        await ref.update({'quantity': FieldValue.increment(-1)});
-      } else {
-        await ref.delete();
-      }
-    }
+    await _cartRepo.updateQuantity(user.uid, product.id, -1);
   }
 
   void removeProductFromCart(ProductModel product) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    await _firestore.collection('users').doc(user.uid).collection('cart').doc(product.id).delete();
+    await _cartRepo.removeFromCart(user.uid, product.id);
   }
 
   // --- Favorites ---
@@ -226,7 +251,7 @@ class AppCubit extends Cubit<AppStates> {
     if (doc.exists) {
       await ref.delete();
     } else {
-      await ref.set(product.toJson());
+      await ref.set(product.toFirestore());
     }
   }
 
@@ -304,6 +329,27 @@ class AppCubit extends Cubit<AppStates> {
     emit(AppThemeChangedState());
   }
 
+  Future<void> setLanguage(bool isArabic) async {
+    final langCode = isArabic ? 'ar' : 'en';
+    final String jsonString = await rootBundle.loadString('assets/lang/$langCode.json');
+    _isArabicLang = isArabic;
+    _translationModel = TranslationModel.fromJson(json.decode(jsonString));
+    await CacheHelper.saveData(key: 'isArabic', value: isArabic);
+    emit(AppLanguageChangedState());
+  }
+
+  Future<void> initLanguage() async {
+    _isArabicLang = CacheHelper.getData(key: 'isArabic') ?? false;
+    final langCode = _isArabicLang ? 'ar' : 'en';
+    try {
+      final String jsonString = await rootBundle.loadString('assets/lang/$langCode.json');
+      _translationModel = TranslationModel.fromJson(json.decode(jsonString));
+    } catch (e) {
+      _translationModel = TranslationModel.fromJson({});
+    }
+    emit(AppLanguageChangedState());
+  }
+
   void changeTheme({bool? fromShared}) {
     if (fromShared != null) {
       _isDarkMode = fromShared;
@@ -321,6 +367,7 @@ class AppCubit extends Cubit<AppStates> {
       searchResults = [];
     } else {
       searchResults = _products.where((p) {
+        if (!isAdminRole && !p.isApproved) return false;
         return p.name.toLowerCase().contains(_searchQuery) ||
             p.category.toLowerCase().contains(_searchQuery) ||
             p.description.toLowerCase().contains(_searchQuery);
@@ -336,7 +383,7 @@ class AppCubit extends Cubit<AppStates> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       profileImage = File(pickedFile.path);
-      emit(AppUpdateProfileSuccessState());
+      emit(AppProfileImagePickedState()); // حالة خاصة بالاختيار فقط
     }
   }
 
@@ -353,26 +400,57 @@ class AppCubit extends Cubit<AppStates> {
     emit(AppUpdateProfileLoadingState());
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      String? avatarUrl;
-      if (profileImage != null) avatarUrl = await uploadImage(profileImage!);
-      await _firestore.collection('users').doc(user.uid).update({
-        'name': name,
-        if (avatarUrl != null) 'avatar': avatarUrl,
-      });
-      await user.updateDisplayName(name);
-      profileImage = null;
-      emit(AppUpdateProfileSuccessState());
+      try {
+        String? avatarUrl;
+        if (profileImage != null) avatarUrl = await uploadImage(profileImage!);
+        
+        // 1. Update Firestore
+        await _firestore.collection('users').doc(user.uid).set({
+          'name': name,
+          if (avatarUrl != null) 'avatar': avatarUrl,
+        }, SetOptions(merge: true));
+
+        // 2. Update Firebase Auth Profile
+        await user.updateDisplayName(name);
+        if (avatarUrl != null) await user.updatePhotoURL(avatarUrl);
+
+        profileImage = null;
+        emit(AppUpdateProfileSuccessState());
+      } catch (e) {
+        emit(AppUpdateProfileErrorState(e.toString()));
+      }
+    }
+  }
+
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    emit(AppChangePasswordLoadingState());
+    try {
+      await _authRepo.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      emit(AppChangePasswordSuccessState());
+    } catch (e) {
+      emit(AppChangePasswordErrorState(e.toString()));
     }
   }
 
   // --- Admin & Product Management ---
   Future<void> addProduct({required String name, required String price, required String description, required String category, required int stock, required File image}) async {
+    if (!hasPermission(AppPermissions.publishProducts)) {
+      emit(AppAddProductErrorState("You don't have permission to publish products"));
+      return;
+    }
     emit(AppAddProductLoadingState());
     final imageUrl = await uploadImage(image);
     if (imageUrl == null) {
       emit(AppAddProductErrorState("Image upload failed"));
       return;
     }
+
+    // Products from sellers need approval, products from admins are approved by default
+    bool isApproved = isAdminRole;
+
     final product = ProductModel(
       id: '',
       name: name,
@@ -381,6 +459,7 @@ class AppCubit extends Cubit<AppStates> {
       description: description,
       category: category,
       stock: stock,
+      isApproved: isApproved,
       ownerId: FirebaseAuth.instance.currentUser?.uid ?? '',
       createdAt: DateTime.now(),
     );
@@ -388,7 +467,38 @@ class AppCubit extends Cubit<AppStates> {
     emit(AppAddProductSuccessState());
   }
 
+  Future<void> approveProduct(String productId, bool approved) async {
+    await _firestore.collection("products").doc(productId).update({
+      "isApproved": approved,
+    });
+  }
+
+  Future<void> banUser(String uid, bool isBanned) async {
+    await _firestore.collection("users").doc(uid).update({
+      "isBanned": isBanned,
+    });
+  }
+
+  Future<void> deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        // Delete user data from Firestore
+        await _firestore.collection('users').doc(user.uid).delete();
+        // Delete the Firebase Auth user
+        await user.delete();
+        emit(AppLogoutSuccessState());
+      } catch (e) {
+        emit(AppUpdateProfileErrorState(e.toString()));
+      }
+    }
+  }
+
   Future<void> editProduct({required ProductModel product, required String name, required String price, required String description, required int stock, File? newImage}) async {
+    if (!hasPermission(AppPermissions.editProducts)) {
+      emit(AppEditProductErrorState("You don't have permission to edit products"));
+      return;
+    }
     emit(AppEditProductLoadingState());
     String imageUrl = product.image;
     if (newImage != null) {
@@ -410,6 +520,9 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   Future<void> deleteProduct(ProductModel product) async {
+    if (!hasPermission(AppPermissions.deleteProducts)) {
+      return;
+    }
     await _productsRepo.deleteProduct(product.id);
     emit(AppProductsLoadedState());
   }
@@ -448,8 +561,31 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   Future<String?> uploadImage(File file) async {
-    await Future.delayed(const Duration(seconds: 1));
-    return "https://picsum.photos/200"; 
+    // CLOUDINARY CONFIGURATION
+    const String cloudName = "dqtn59l6z";
+    const String uploadPreset = "product";
+
+    try {
+      final url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+      final request = http.MultipartRequest("POST", url)
+        ..fields['upload_preset'] = uploadPreset
+        ..files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      final response = await request.send();
+      final responseData = await response.stream.bytesToString();
+      
+      if (response.statusCode == 200) {
+        final json = jsonDecode(responseData);
+        return json['secure_url'];
+      } else {
+        debugPrint("Cloudinary Upload Failed: ${response.statusCode}");
+        debugPrint("Cloudinary Error Body: $responseData");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Cloudinary Upload Error: $e");
+      return null;
+    }
   }
 
   // --- Reviews ---
@@ -533,45 +669,19 @@ class AppCubit extends Cubit<AppStates> {
       if (user == null) throw Exception("User not logged in");
       if (_cartItemsList.isEmpty) throw Exception("Cart is empty");
 
-      await _firestore.runTransaction((transaction) async {
-        for (var item in _cartItemsList) {
-          final productRef = _firestore.collection("products").doc(item.product.id);
-          final productDoc = await transaction.get(productRef);
-          if (!productDoc.exists) throw Exception("Product ${item.product.name} not found");
-          final data = productDoc.data() ?? {};
-          int currentStock = (data["stock"] as num?)?.toInt() ?? 0;
-          if (currentStock < item.quantity) throw Exception("Product ${item.product.name} is out of stock");
-          transaction.update(productRef, {"stock": currentStock - item.quantity});
-        }
+      await _orderRepo.createOrder(
+        uid: user.uid,
+        email: user.email ?? "no-email@example.com",
+        name: user.displayName ?? "User",
+        cartItems: _cartItemsList,
+        totalPrice: cartTotalprice,
+        address: address,
+        phone: phone,
+        paymentMethod: paymentMethod,
+      );
 
-        final orderRef = _firestore.collection("orders").doc();
-        transaction.set(orderRef, {
-          "userId": user.uid,
-          "userEmail": user.email ?? "no-email@example.com",
-          "userName": user.displayName ?? "User",
-          "items": _cartItemsList.map((item) => {
-            "productId": item.product.id,
-            "name": item.product.name,
-            "price": item.product.price,
-            "quantity": item.quantity,
-            "image": item.product.image,
-          }).toList(),
-          "totalPrice": cartTotalprice,
-          "address": address,
-          "phone": phone,
-          "status": "Pending",
-          "paymentMethod": paymentMethod,
-          "paymentStatus": (paymentMethod == "Cash") ? "Pending" : "Paid",
-          "createdAt": FieldValue.serverTimestamp(),
-        });
-      });
-
-      // Clear Cart from Firestore
-      final cartRef = _firestore.collection('users').doc(user.uid).collection('cart');
-      final cartDocs = await cartRef.get();
-      for (var d in cartDocs.docs) {
-        await d.reference.delete();
-      }
+      // Clear Cart
+      await _cartRepo.clearCart(user.uid);
 
       emit(AppCreateOrderSuccessState());
     } catch (e) {
@@ -580,7 +690,7 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
-    await _firestore.collection("orders").doc(orderId).update({"status": newStatus});
+    await _orderRepo.updateOrderStatus(orderId, newStatus);
   }
 
   // --- Miscellaneous ---
@@ -595,8 +705,8 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   Future<void> completeOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool("sawOnboarding", true);
+    await CacheHelper.saveData(key: "sawOnboarding", value: true);
+    emit(AppOnboardingCompletedState());
   }
 
   int currentIndex = 0;
@@ -606,6 +716,7 @@ class AppCubit extends Cubit<AppStates> {
   }
 
   void initApp() {
+    initLanguage();
     listenToAuthState();
     listenToProducts();
     listenToCategories();

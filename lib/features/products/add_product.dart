@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/utils/constants/constants.dart';
 import '../cubit/cubit.dart';
 import '../cubit/state.dart';
 
@@ -60,27 +61,27 @@ class _AddProductState extends State<AddProduct> {
         final loading = state is AppAddProductLoadingState;
 
         return Scaffold(
-          appBar: AppBar(title: const Text("Add Product")),
+          appBar: AppBar(title: Text(appTranslation().get("add_product"))),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _field(name, "Product name"),
+                _field(name, appTranslation().get("product_name")),
                 Row(
                   children: [
-                    Expanded(child: _field(price, "Price", keyboard: TextInputType.number)),
+                    Expanded(child: _field(price, appTranslation().get("price"), keyboard: TextInputType.number)),
                     const SizedBox(width: 12),
-                    Expanded(child: _field(stock, "Stock", keyboard: TextInputType.number)),
+                    Expanded(child: _field(stock, appTranslation().get("stock"), keyboard: TextInputType.number)),
                   ],
                 ),
-                _field(description, "Description", max: 3),
+                _field(description, appTranslation().get("description"), max: 3),
 
                 /// CATEGORY DROPDOWN
                 DropdownButtonFormField<String>(
                   value: cubit.categories.any((c) => c.name == selectedCategory)
                       ? selectedCategory
                       : null,
-                  hint: const Text("Select category"),
+                  hint: Text(appTranslation().get("select_category")),
                   items: [
                     ...cubit.categories
                         .where((c) => c.id != "all")
@@ -90,13 +91,13 @@ class _AddProductState extends State<AddProduct> {
                         child: Text(c.name),
                       ),
                     ),
-                    const DropdownMenuItem<String>(
+                    DropdownMenuItem<String>(
                       value: "__add__",
                       child: Row(
                         children: [
-                          Icon(Icons.add, size: 18),
-                          SizedBox(width: 6),
-                          Text("Add new category"),
+                          const Icon(Icons.add, size: 18),
+                          const SizedBox(width: 6),
+                          Text(appTranslation().get("add_new_category")),
                         ],
                       ),
                     ),
@@ -129,44 +130,52 @@ class _AddProductState extends State<AddProduct> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: image == null
-                        ? const Center(child: Text("Pick image"))
-                        : Image.file(image!, fit: BoxFit.cover),
+                        ? Center(child: Text(appTranslation().get("pick_image")))
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(image!, fit: BoxFit.cover),
+                          ),
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
                 /// SAVE BUTTON
-                ElevatedButton(
-                  onPressed: loading
-                      ? null
-                      : () {
-                    if (image == null ||
-                        selectedCategory == null ||
-                        name.text.isEmpty ||
-                        price.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Fill all fields"),
-                        ),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: loading
+                        ? null
+                        : () {
+                      if (image == null ||
+                          selectedCategory == null ||
+                          name.text.isEmpty ||
+                          price.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(appTranslation().get("fill_all_fields")),
+                          ),
+                        );
+                        return;
+                      }
+                  
+                      cubit.addProduct(
+                        name: name.text.trim(),
+                        price: price.text.trim(),
+                        description: description.text.trim(),
+                        category: selectedCategory!,
+                        stock: int.tryParse(stock.text) ?? 10,
+                        image: image!,
                       );
-                      return;
-                    }
-
-                    cubit.addProduct(
-                      name: name.text.trim(),
-                      price: price.text.trim(),
-                      description: description.text.trim(),
-                      category: selectedCategory!,
-                      stock: int.tryParse(stock.text) ?? 10,
-                      image: image!,
-                    );
-                  },
-                  child: loading
-                      ? const CircularProgressIndicator()
-                      : const Text("Save Product"),
+                    },
+                    child: loading
+                        ? const CircularProgressIndicator()
+                        : Text(appTranslation().get("save_product")),
+                  ),
                 ),
               ],
             ),
@@ -202,17 +211,17 @@ Future<String?> _showAddCategoryDialog(BuildContext context) async {
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: const Text("Add Category"),
+        title: Text(appTranslation().get("add_new_category")),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: "Category name",
+          decoration: InputDecoration(
+            hintText: appTranslation().get("category_name"),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text(appTranslation().get("cancel")),
           ),
           ElevatedButton(
             onPressed: () {
@@ -221,7 +230,7 @@ Future<String?> _showAddCategoryDialog(BuildContext context) async {
                 Navigator.pop(context, value);
               }
             },
-            child: const Text("Add"),
+            child: Text(appTranslation().get("add")),
           ),
         ],
       );

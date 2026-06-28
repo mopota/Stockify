@@ -10,6 +10,7 @@ class ProductModel {
   final String category;
   final String ownerId;
   final int stock;
+  final bool isApproved;
   final DateTime? createdAt;
   final double averageRating;
   final int ratingCount;
@@ -23,6 +24,7 @@ class ProductModel {
     required this.category,
     required this.ownerId,
     required this.stock,
+    this.isApproved = true,
     this.createdAt,
     this.averageRating = 0.0,
     this.ratingCount = 0,
@@ -38,6 +40,7 @@ class ProductModel {
       category: json['category'] ?? json['categoryId'] ?? 'Other',
       ownerId: json['ownerId'] ?? '',
       stock: json['stock'] ?? 10,
+      isApproved: json['isApproved'] ?? true,
       createdAt: DateParser.parse(json['createdAt']),
       averageRating: (json['averageRating'] ?? 0.0).toDouble(),
       ratingCount: json['ratingCount'] ?? 0,
@@ -56,6 +59,23 @@ class ProductModel {
       'categoryId': category,
       'ownerId': ownerId,
       'stock': stock,
+      'isApproved': isApproved,
+      'createdAt': createdAt?.toIso8601String(),
+      'averageRating': averageRating,
+      'ratingCount': ratingCount,
+    };
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'description': description,
+      'price': price,
+      'image': image,
+      'category': category,
+      'ownerId': ownerId,
+      'stock': stock,
+      'isApproved': isApproved,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'averageRating': averageRating,
       'ratingCount': ratingCount,
@@ -71,6 +91,7 @@ class ProductModel {
     String? category,
     String? ownerId,
     int? stock,
+    bool? isApproved,
     DateTime? createdAt,
     double? averageRating,
     int? ratingCount,
@@ -84,6 +105,7 @@ class ProductModel {
       category: category ?? this.category,
       ownerId: ownerId ?? this.ownerId,
       stock: stock ?? this.stock,
+      isApproved: isApproved ?? this.isApproved,
       createdAt: createdAt ?? this.createdAt,
       averageRating: averageRating ?? this.averageRating,
       ratingCount: ratingCount ?? this.ratingCount,

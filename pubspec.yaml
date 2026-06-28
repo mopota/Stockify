@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # UI
   cupertino_icons: ^1.0.8
@@ -36,6 +38,9 @@ dependencies:
   permission_handler: ^12.0.1
   flutter_native_splash: ^2.4.7
   flutter_stripe: ^12.1.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  firebase_storage: ^13.4.3
 
 dev_dependencies:
   flutter_test:
@@ -43,12 +48,15 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.13
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/icon/
+    - assets/lang/
 
 
 flutter_launcher_icons:

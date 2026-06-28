@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/constants/constants.dart';
+import '../../core/utils/constants/roles.dart';
 import '../../data/models/product_model.dart';
 import '../cubit/cubit.dart';
 import '../products/edit_product.dart';
@@ -25,18 +27,19 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final cubit = AppCubit.get(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
+        title: Text(appTranslation().get("admin_dashboard")),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          tabs: const [
-            Tab(text: "Overview"),
-            Tab(text: "Orders"),
-            Tab(text: "Products"),
-            Tab(text: "Categories"),
-            Tab(text: "Users"),
+          tabs: [
+            Tab(text: appTranslation().get("overview")),
+            if (cubit.hasPermission(AppPermissions.manageOrders)) Tab(text: appTranslation().get("my_orders")),
+            if (cubit.hasPermission(AppPermissions.publishProducts)) Tab(text: appTranslation().get("products")),
+            if (cubit.hasPermission(AppPermissions.manageCategories)) Tab(text: appTranslation().get("categories")),
+            if (cubit.hasPermission(AppPermissions.manageUsers)) Tab(text: appTranslation().get("users")),
           ],
         ),
       ),
@@ -44,10 +47,17 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         controller: _tabController,
         children: [
           _buildOverviewTab(),
-          _buildOrdersTab(),
-          _buildProductsTab(),
-          _buildCategoriesTab(),
-          _buildUsersTab(),
+          if (cubit.hasPermission(AppPermissions.manageOrders)) _buildOrdersTab(),
+          if (cubit.hasPermission(AppPermissions.publishProducts)) _buildProductsTab(),
+          if (cubit.hasPermission(AppPermissions.manageCategories)) _buildCategoriesTab(),
+          if (cubit.hasPermission(AppPermissions.manageUsers)) _buildUsersTab(),
+          
+          ...List.generate(5 - (1 + 
+            (cubit.hasPermission(AppPermissions.manageOrders) ? 1 : 0) +
+            (cubit.hasPermission(AppPermissions.publishProducts) ? 1 : 0) +
+            (cubit.hasPermission(AppPermissions.manageCategories) ? 1 : 0) +
+            (cubit.hasPermission(AppPermissions.manageUsers) ? 1 : 0)
+          ), (index) => const SizedBox.shrink()),
         ],
       ),
     );
@@ -59,7 +69,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Analytics", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text(appTranslation().get("analytics"), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           GridView.count(
             crossAxisCount: 2,
@@ -67,12 +77,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.0,
             children: [
-              _buildStatCard("Total Sales", "orders", Icons.monetization_on_outlined, isCurrency: true),
-              _buildStatCard("Total Orders", "orders", Icons.shopping_cart_outlined),
-              _buildStatCard("Products", "products", Icons.inventory_2_outlined),
-              _buildStatCard("Customers", "users", Icons.people_outline),
+              _buildStatCard(appTranslation().get("total_sales"), "orders", Icons.monetization_on_outlined, isCurrency: true),
+              _buildStatCard(appTranslation().get("total_orders"), "orders", Icons.shopping_cart_outlined),
+              _buildStatCard(appTranslation().get("products"), "products", Icons.inventory_2_outlined),
+              _buildStatCard(appTranslation().get("customers"), "users", Icons.people_outline),
             ],
           ),
           const SizedBox(height: 32),
@@ -101,18 +111,26 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
         return Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
-                const SizedBox(height: 8),
-                Text(
-                  isCurrency ? "\$${revenue.toStringAsFixed(0)}" : "$count",
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    isCurrency ? "\$${revenue.toStringAsFixed(0)}" : "$count",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                 ),
-                Text(title, style: Theme.of(context).textTheme.labelSmall),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -125,7 +143,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Recent Orders", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(appTranslation().get("recent_orders"), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance.collection("orders").orderBy("createdAt", descending: true).limit(5).snapshots(),
@@ -189,7 +207,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           child: FilledButton.icon(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProduct())),
             icon: const Icon(Icons.add),
-            label: const Text("Add New Product"),
+            label: Text(appTranslation().get("add_new_product")),
             style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 54)),
           ),
         ),
@@ -214,10 +232,22 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                         child: Image.network(product.image, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace)=>const Icon(Icons.broken_image)),
                       ),
                       title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("\$${product.price} • Stock: ${product.stock}"),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("\$${product.price} • ${appTranslation().get("stock")}: ${product.stock}"),
+                          if (!product.isApproved)
+                            Text(appTranslation().get("pending_approval"), style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (!product.isApproved)
+                            IconButton(
+                              icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                              onPressed: () => AppCubit.get(context).approveProduct(product.id, true),
+                            ),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined, color: Colors.blue),
                             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EditProduct(product: product))),
@@ -243,17 +273,17 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Product"),
-        content: Text("Are you sure you want to delete ${product.name}?"),
+        title: Text(appTranslation().get("delete_product")),
+        content: Text("${appTranslation().get("delete_confirm")} (${product.name})"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(appTranslation().get("cancel"))),
           ElevatedButton(
             onPressed: () {
               AppCubit.get(context).deleteProduct(product);
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            child: const Text("Delete"),
+            child: Text(appTranslation().get("delete")),
           ),
         ],
       ),
@@ -268,7 +298,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              Expanded(child: TextField(controller: controller, decoration: const InputDecoration(hintText: "Category Name"))),
+              Expanded(child: TextField(controller: controller, decoration: InputDecoration(hintText: appTranslation().get("categories")))),
               const SizedBox(width: 8),
               IconButton.filled(
                 onPressed: () {
@@ -313,6 +343,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   }
 
   Widget _buildUsersTab() {
+    final cubit = AppCubit.get(context);
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection("users").snapshots(),
       builder: (context, snapshot) {
@@ -325,25 +356,120 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           itemBuilder: (context, index) {
             final userData = users[index].data() as Map<String, dynamic>;
             final uid = users[index].id;
-            final bool isUserAdmin = userData['isAdmin'] ?? false;
+            final role = userData['role'] ?? AppRoles.user;
+            final bool isBanned = userData['isBanned'] ?? false;
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
-                leading: CircleAvatar(child: Text(userData['name']?[0] ?? "U")),
-                title: Text(userData['name'] ?? "No Name", style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(userData['email'] ?? ""),
-                trailing: Switch(
-                  value: isUserAdmin,
-                  onChanged: (val) {
-                    FirebaseFirestore.instance.collection("users").doc(uid).update({"isAdmin": val});
-                  },
+                leading: CircleAvatar(
+                  backgroundColor: isBanned ? Colors.red : null,
+                  child: Text(userData['name']?[0] ?? "U"),
                 ),
+                title: Text(userData['name'] ?? "No Name", style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("${userData['email']}\n${appTranslation().get("role")}: ${role.toUpperCase()}${isBanned ? " (${appTranslation().get("banned")})" : ""}"),
+                isThreeLine: true,
+                trailing: cubit.isSuperAdmin ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(isBanned ? Icons.gavel : Icons.block, color: isBanned ? Colors.green : Colors.red),
+                      onPressed: () => cubit.banUser(uid, !isBanned),
+                      tooltip: isBanned ? appTranslation().get("unban_user") : appTranslation().get("ban_user"),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.security),
+                      onPressed: () => _showUserRoleDialog(uid, userData),
+                    ),
+                  ],
+                ) : null,
               ),
             );
           },
         );
       },
+    );
+  }
+
+  void _showUserRoleDialog(String uid, Map<String, dynamic> userData) {
+    String selectedRole = userData['role'] ?? AppRoles.user;
+    List<String> currentPermissions = List<String>.from(userData['permissions'] ?? []);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(appTranslation().get("manage_user").replaceFirst("{}", userData['name'] ?? "")),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: InputDecoration(labelText: appTranslation().get("role")),
+                  items: [
+                    AppRoles.user,
+                    AppRoles.seller,
+                    AppRoles.moderator,
+                    AppRoles.admin,
+                    AppRoles.superAdmin,
+                  ].map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase()))).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        selectedRole = val;
+                        if (val == AppRoles.admin) {
+                          currentPermissions = List.from(AppPermissions.adminDefaultPermissions);
+                        } else if (val == AppRoles.seller) {
+                          currentPermissions = [AppPermissions.publishProducts, AppPermissions.editProducts, AppPermissions.deleteProducts];
+                        } else if (val == AppRoles.user) {
+                          currentPermissions = [];
+                        }
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(appTranslation().get("permissions"), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ...[
+                  AppPermissions.publishProducts,
+                  AppPermissions.editProducts,
+                  AppPermissions.deleteProducts,
+                  AppPermissions.manageOrders,
+                  AppPermissions.manageUsers,
+                  AppPermissions.manageCategories,
+                  AppPermissions.accessDashboard,
+                ].map((p) => CheckboxListTile(
+                  title: Text(p.replaceAll('_', ' ')),
+                  value: currentPermissions.contains(p),
+                  onChanged: (val) {
+                    setState(() {
+                      if (val == true) {
+                        currentPermissions.add(p);
+                      } else {
+                        currentPermissions.remove(p);
+                      }
+                    });
+                  },
+                )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(appTranslation().get("cancel"))),
+            ElevatedButton(
+              onPressed: () async {
+                await FirebaseFirestore.instance.collection("users").doc(uid).update({
+                  "role": selectedRole,
+                  "permissions": currentPermissions,
+                });
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: Text(appTranslation().get("save")),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

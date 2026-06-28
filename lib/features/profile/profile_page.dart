@@ -4,13 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/utils/constants/constants.dart';
 import '../cubit/cubit.dart';
 import '../cubit/state.dart';
+import '../../core/utils/constants/roles.dart';
 import 'orders_page.dart';
 import '../favorites/favorites_page.dart';
 import 'addresses_page.dart';
 import 'payment_methods_page.dart';
 import 'admin_dashboard.dart';
+import 'seller_dashboard.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -24,54 +27,94 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final cubit = AppCubit.get(context);
+    return BlocConsumer<AppCubit, AppStates>(
+      listener: (context, state) {
+        if (state is AppUpdateProfileLoadingState || state is AppChangePasswordLoadingState) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        // لا تغلق أي شيء إلا إذا كانت الحالة هي "خطأ" أو "نجاح حفظ"
+        if (state is AppUpdateProfileSuccessState || state is AppUpdateProfileErrorState || 
+            state is AppChangePasswordSuccessState || state is AppChangePasswordErrorState) {
+          Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading only
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("My Profile"),
-        actions: [
-          IconButton(
-            onPressed: () => _showSettings(context),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
-          final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-          final name = data['name'] ?? "User";
-          final email = data['email'] ?? "";
-          final avatarUrl = data['avatar'];
-          final isAdmin = data['isAdmin'] ?? false;
+        if (state is AppUpdateProfileSuccessState) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(appTranslation().get("profile_updated_success"))),
+          );
+        }
+        if (state is AppChangePasswordSuccessState) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(appTranslation().get("password_changed_success"))),
+          );
+        }
+        if (state is AppChangePasswordErrorState) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+          );
+        }
+      },
+      builder: (context, state) {
+        final cubit = AppCubit.get(context);
 
-          return BlocBuilder<AppCubit, AppStates>(
-            builder: (context, state) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    // 1. Header with Avatar
-                    _buildProfileHeader(context, name, email, avatarUrl, cubit),
-                    
-                    const SizedBox(height: 32),
+        return Scaffold(
+          body: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              
+              final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+              final name = data['name'] ?? "User";
+              final email = data['email'] ?? "";
+              final avatarUrl = data['avatar'];
+              final bool canAccessDashboard = cubit.hasPermission(AppPermissions.accessDashboard);
 
-                    // 2. Main Sections
-                    _buildProfileMenu(context, cubit, isAdmin),
-
-                    const SizedBox(height: 32),
-
-                    // 3. Logout
-                    _buildLogoutButton(context, cubit),
-                  ],
-                ),
+              return CustomScrollView(
+                slivers: [
+                  SliverAppBar.large(
+                    title: Text(appTranslation().get("my_profile")),
+                    actions: [
+                      IconButton(
+                        onPressed: () => cubit.logout(),
+                        icon: const Icon(Icons.logout, color: Colors.red),
+                      ),
+                    ],
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        children: [
+                          _buildProfileHeader(context, name, email, avatarUrl, cubit),
+                          const SizedBox(height: 24),
+                          
+                          _buildSectionTitle(context, appTranslation().get("my_activity")),
+                          _buildActivityCard(context, cubit, canAccessDashboard),
+                          
+                          const SizedBox(height: 24),
+                          _buildSectionTitle(context, appTranslation().get("account_details")),
+                          _buildAccountCard(context, cubit),
+                          
+                          const SizedBox(height: 24),
+                          _buildSectionTitle(context, appTranslation().get("app_settings")),
+                          _buildSettingsCard(context, cubit),
+                          
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -81,120 +124,191 @@ class _ProfilePageState extends State<ProfilePage> {
         Stack(
           children: [
             CircleAvatar(
-              radius: 50,
+              radius: 60,
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               backgroundImage: cubit.profileImage != null
                   ? FileImage(cubit.profileImage!)
                   : avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
               child: cubit.profileImage == null && avatarUrl == null
-                  ? Icon(Icons.person, size: 50, color: Theme.of(context).colorScheme.onPrimaryContainer)
+                  ? Icon(Icons.person, size: 60, color: Theme.of(context).colorScheme.onPrimaryContainer)
                   : null,
             ),
             Positioned(
               bottom: 0,
-              right: 0,
-              child: IconButton.filledTonal(
+              right: 4,
+              child: IconButton.filled(
                 onPressed: () => _showImageSourceOptions(context, cubit, avatarUrl != null),
-                icon: const Icon(Icons.edit, size: 18),
-                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.camera_alt, size: 20),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
         Text(name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-        Text(email, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        Text(email, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.outline)),
       ],
     );
   }
 
-  Widget _buildProfileMenu(BuildContext context, AppCubit cubit, bool isAdmin) {
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8.0, bottom: 8.0, right: 8.0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityCard(BuildContext context, AppCubit cubit, bool canAccessDashboard) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        children: [
+          if (canAccessDashboard)
+            _buildListTile(
+              context,
+              title: appTranslation().get("admin_dashboard"),
+              icon: Icons.dashboard_customize_outlined,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboard())),
+              iconColor: Theme.of(context).colorScheme.secondary,
+            ),
+          if (cubit.userRole == AppRoles.seller)
+            _buildListTile(
+              context,
+              title: appTranslation().get("seller_dashboard"),
+              icon: Icons.storefront_outlined,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SellerDashboard())),
+              iconColor: Colors.deepPurple,
+            ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("my_orders"),
+            icon: Icons.local_shipping_outlined,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersPage())),
+          ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("my_wishlist"),
+            icon: Icons.favorite_outline,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage())),
+          ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("shipping_addresses"),
+            icon: Icons.map_outlined,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddressesPage())),
+          ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("payment_methods"),
+            icon: Icons.account_balance_wallet_outlined,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentMethodsPage())),
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountCard(BuildContext context, AppCubit cubit) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        children: [
+          _buildListTile(
+            context,
+            title: appTranslation().get("edit_profile"),
+            icon: Icons.person_outline,
+            onTap: () => _showEditProfileDialog(context, cubit),
+          ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("change_password"),
+            icon: Icons.password_outlined,
+            onTap: () => _showChangePasswordDialog(context, cubit),
+          ),
+          _buildListTile(
+            context,
+            title: appTranslation().get("delete_my_account"),
+            icon: Icons.person_remove_outlined,
+            onTap: () => _showDeleteAccountDialog(context, cubit),
+            iconColor: Colors.red,
+            textColor: Colors.red,
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsCard(BuildContext context, AppCubit cubit) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.dark_mode_outlined, color: Theme.of(context).colorScheme.primary),
+            title: Text(appTranslation().get("dark_mode")),
+            trailing: Switch(
+              value: cubit.isDarkMode,
+              onChanged: (val) => cubit.toggleTheme(),
+            ),
+          ),
+          const Divider(height: 1, indent: 56),
+          _buildListTile(
+            context,
+            title: appTranslation().get("language"),
+            icon: Icons.translate_outlined,
+            trailing: Text(
+              cubit.isArabicLang ? "العربية" : "English",
+              style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+            ),
+            onTap: () => cubit.setLanguage(!cubit.isArabicLang),
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListTile(BuildContext context, {required String title, required IconData icon, required VoidCallback onTap, Color? iconColor, Color? textColor, Widget? trailing, bool isLast = false}) {
     return Column(
       children: [
-        if (isAdmin)
-          _buildMenuItem(
-            context,
-            title: "Admin Dashboard",
-            icon: Icons.dashboard_outlined,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboard())),
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-        _buildMenuItem(
-          context,
-          title: "My Orders",
-          icon: Icons.shopping_bag_outlined,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersPage())),
+        ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary),
+          title: Text(title, style: TextStyle(fontWeight: FontWeight.w500, color: textColor)),
+          trailing: trailing ?? const Icon(Icons.chevron_right, size: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
-        _buildMenuItem(
-          context,
-          title: "My Wishlist",
-          icon: Icons.favorite_border,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage())),
-        ),
-        _buildMenuItem(
-          context,
-          title: "Shipping Addresses",
-          icon: Icons.location_on_outlined,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddressesPage())),
-        ),
-        _buildMenuItem(
-          context,
-          title: "Payment Methods",
-          icon: Icons.payment_outlined,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentMethodsPage())),
-        ),
-        _buildMenuItem(
-          context,
-          title: "Account Settings",
-          icon: Icons.person_outline,
-          onTap: () => _showEditProfileDialog(context, cubit),
-        ),
+        if (!isLast) const Divider(height: 1, indent: 56),
       ],
-    );
-  }
-
-  Widget _buildMenuItem(BuildContext context, {required String title, required IconData icon, required VoidCallback onTap, Color? color}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        onTap: onTap,
-        leading: Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right, size: 20),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton(BuildContext context, AppCubit cubit) {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton.icon(
-        onPressed: () => cubit.logout(),
-        icon: const Icon(Icons.logout, color: Colors.red),
-        label: const Text("Logout", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-      ),
     );
   }
 
   void _showImageSourceOptions(BuildContext context, AppCubit cubit, bool hasImage) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text("Choose from Gallery"),
+              title: Text(appTranslation().get("choose_gallery")),
               onTap: () {
                 Navigator.pop(context);
                 cubit.pickProfileImage();
@@ -203,7 +317,7 @@ class _ProfilePageState extends State<ProfilePage> {
             if (hasImage)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text("Remove Photo", style: TextStyle(color: Colors.red)),
+                title: Text(appTranslation().get("remove_photo"), style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   cubit.deleteAvatar();
@@ -220,54 +334,113 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Edit Profile"),
+        title: Text(appTranslation().get("edit_profile")),
         content: TextField(
           controller: nameController,
-          decoration: const InputDecoration(labelText: "Full Name"),
+          decoration: InputDecoration(
+            labelText: appTranslation().get("full_name"),
+            border: const OutlineInputBorder(),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(appTranslation().get("cancel"))),
+          FilledButton(
             onPressed: () {
               cubit.updateProfile(name: nameController.text.trim());
               Navigator.pop(context);
             },
-            child: const Text("Save"),
+            child: Text(appTranslation().get("save")),
           ),
         ],
       ),
     );
   }
 
-  void _showSettings(BuildContext context) {
-    // Show theme toggle, language, etc.
-    final cubit = AppCubit.get(context);
-    showModalBottomSheet(
+  void _showChangePasswordDialog(BuildContext context, AppCubit cubit) {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Settings", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            SwitchListTile(
-              title: const Text("Dark Mode"),
-              secondary: const Icon(Icons.dark_mode_outlined),
-              value: cubit.isDarkMode,
-              onChanged: (val) => cubit.toggleTheme(),
+      builder: (context) => AlertDialog(
+        title: Text(appTranslation().get("change_password")),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: currentPasswordController,
+                  decoration: InputDecoration(
+                    labelText: appTranslation().get("current_password"),
+                    border: const OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (val) => val == null || val.isEmpty ? appTranslation().get("fill_all_fields") : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: newPasswordController,
+                  decoration: InputDecoration(
+                    labelText: appTranslation().get("new_password"),
+                    border: const OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (val) => val == null || val.length < 6 ? appTranslation().get("password_short_error") : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: confirmPasswordController,
+                  decoration: InputDecoration(
+                    labelText: appTranslation().get("confirm_password"),
+                    border: const OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (val) => val == newPasswordController.text ? null : appTranslation().get("password_mismatch"),
+                ),
+              ],
             ),
-            ListTile(
-              title: const Text("Language"),
-              leading: const Icon(Icons.language_outlined),
-              trailing: const Text("English"),
-              onTap: () {},
-            ),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(appTranslation().get("cancel"))),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                cubit.changePassword(
+                  currentPassword: currentPasswordController.text,
+                  newPassword: newPasswordController.text,
+                );
+                Navigator.pop(context);
+              }
+            },
+            child: Text(appTranslation().get("save")),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context, AppCubit cubit) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(appTranslation().get("delete_my_account")),
+        content: Text(appTranslation().get("delete_account_confirm")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(appTranslation().get("cancel"))),
+          FilledButton(
+            onPressed: () {
+              cubit.deleteAccount();
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: Text(appTranslation().get("delete")),
+          ),
+        ],
       ),
     );
   }

@@ -8,9 +8,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        getUserData().role == 'super_admin' ||
+        request.auth.token.email == 'mohamed.dio555@gmail.com'
+      );
+    }
+
+    function hasPermission(permission) {
+      return isSignedIn() && (isSuperAdmin() || (getUserData().permissions.size() > 0 && permission in getUserData().permissions));
     }
 
     function isOwner(userId) {
@@ -20,47 +30,56 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      // Allow user to create their profile, but NOT set isAdmin to true unless they are already an admin
-      allow create: if isSignedIn() && (request.resource.data.isAdmin == false || isAdmin());
-      // Prevent regular users from promoting themselves to admin
-      allow update: if isSignedIn() && (
-        (isOwner(userId) && request.resource.data.isAdmin == resource.data.isAdmin) ||
-        isAdmin()
+
+      // Allow user to create their profile. Role MUST be 'user' unless Super Admin creates it.
+      allow create: if isSignedIn() && (
+        (request.resource.data.role == 'user' && request.resource.data.permissions.size() == 0) ||
+        isSuperAdmin()
       );
-      allow delete: if isAdmin();
+
+      // Prevent regular users from changing their role or permissions
+      allow update: if isSignedIn() && (
+        (isOwner(userId) &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.permissions == resource.data.permissions) ||
+        isSuperAdmin() || hasPermission('manage_users')
+      );
+
+      allow delete: if isSuperAdmin();
     }
 
     // Products collection
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if hasPermission('publish_products');
+      allow update: if hasPermission('edit_products');
+      allow delete: if hasPermission('delete_products');
 
       // Reviews sub-collection
       match /reviews/{reviewId} {
         allow read: if true;
-        // Review ID is the User UID
         allow create: if isSignedIn() && reviewId == request.auth.uid
                       && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isSignedIn() && (reviewId == request.auth.uid || isAdmin());
+        allow update, delete: if isSignedIn() && (reviewId == request.auth.uid || hasPermission('manage_reviews'));
       }
     }
 
     // Categories collection
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if hasPermission('manage_categories');
     }
 
     // Orders collection
     match /orders/{orderId} {
-      // Users can only see their own orders. Admins see all.
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Users can only see their own orders. Admins with permission see all.
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasPermission('manage_orders'));
+
       // Only users can create their own orders
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Only admins can update status or delete
-      allow update, delete: if isAdmin();
+
+      // Only admins with permission can update status or delete
+      allow update, delete: if hasPermission('manage_orders');
     }
   }
 }

@@ -1,6 +1,10 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/utils/constants/constants.dart';
+import '../cubit/cubit.dart';
+import '../cubit/state.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -58,136 +62,160 @@ behavior: SnackBarBehavior.floating,
 }
 
 @override
-@override
 Widget build(BuildContext context) {
-return Scaffold(
-body: Center(
-child: SingleChildScrollView(
-padding: const EdgeInsets.all(24),
-child: Container(
-width: double.infinity,
-constraints: const BoxConstraints(maxWidth: 380),
-padding: const EdgeInsets.all(24),
-decoration: BoxDecoration(
-color: Theme.of(context).cardColor,
-borderRadius: BorderRadius.circular(20),
-boxShadow: [
-BoxShadow(
-color: Colors.black.withValues(alpha: 0.05),
-blurRadius: 14,
-offset: const Offset(0, 8),
-),
-],
-),
-child: Column(
-mainAxisSize: MainAxisSize.min,
-children: [
-const Icon(
-Icons.lock_outline,
-size: 56,
-color: Color(0xFF6C4CFF),
-),
+  return BlocConsumer<AppCubit, AppStates>(
+    listener: (context, state) {
+      if (state is AppLoginSuccessState) {
+        // MainLayout handled by AuthStateChanges in main.dart
+      }
+      if (state is AppLoginErrorState) {
+        _showError(state.message);
+      }
+    },
+    builder: (context, state) {
+      final cubit = AppCubit.get(context);
+      final bool isAppLoading = state is AppLoginLoadingState;
 
-const SizedBox(height: 16),
+      return Scaffold(
+        appBar: AppBar(
+          actions: [
+            TextButton(
+              onPressed: () => cubit.setLanguage(!cubit.isArabicLang),
+              child: Text(
+                cubit.isArabicLang ? "English" : "العربية",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 380),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 56,
+                    color: Color(0xFF6C4CFF),
+                  ),
 
-Text(
-"Welcome back",
-style: TextStyle(
-fontSize: 22,
-fontWeight: FontWeight.w700,
-color: Theme.of(context).textTheme.bodyLarge!.color,
-),
-),
+                  const SizedBox(height: 16),
 
-const SizedBox(height: 6),
+                  Text(
+                    appTranslation().get("welcome_back"),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).textTheme.bodyLarge!.color,
+                    ),
+                  ),
 
-const Text(
-"Sign in to continue",
-style: TextStyle(
-fontSize: 14,
-color: Color(0xFF6B7280),
-),
-),
+                  const SizedBox(height: 6),
 
-const SizedBox(height: 28),
+                  Text(
+                    appTranslation().get("sign_in_continue"),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
 
-TextField(
-controller: email,
-keyboardType: TextInputType.emailAddress,
-decoration: const InputDecoration(
-labelText: "Email address",
-prefixIcon: Icon(Icons.email_outlined),
-),
-),
+                  const SizedBox(height: 28),
 
-const SizedBox(height: 16),
+                  TextField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: appTranslation().get("email"),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                    ),
+                  ),
 
-TextField(
-controller: password,
-obscureText: true,
-decoration: const InputDecoration(
-labelText: "Password",
-prefixIcon: Icon(Icons.lock_outline),
-),
-),
+                  const SizedBox(height: 16),
 
-const SizedBox(height: 26),
+                  TextField(
+                    controller: password,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: appTranslation().get("password"),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                    ),
+                  ),
 
-SizedBox(
-width: double.infinity,
-height: 50,
-child: ElevatedButton(
-onPressed: loading ? null : login,
-child: loading
-? CircularProgressIndicator(
-color: Theme.of(context).cardColor,
-strokeWidth: 2,
-)
-    : const Text(
-"Sign In",
-style: TextStyle(
-fontSize: 16,
-fontWeight: FontWeight.w600,
-),
-),
-),
-),
+                  const SizedBox(height: 26),
 
-const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: isAppLoading ? null : () => cubit.login(email: email.text, password: password.text),
+                      child: isAppLoading
+                          ? CircularProgressIndicator(
+                        color: Theme.of(context).cardColor,
+                        strokeWidth: 2,
+                      )
+                          : Text(
+                        appTranslation().get("sign_in"),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
 
-Row(
-mainAxisAlignment: MainAxisAlignment.center,
-children: [
-const Text(
-"Don’t have an account?",
-style: TextStyle(
-color: Color(0xFF6B7280),
-),
-),
-TextButton(
-onPressed: () {
-Navigator.push(
-context,
-MaterialPageRoute(
-builder: (_) => const RegisterPage(),
-),
-);
-},
-child: const Text(
-"Sign up",
-style: TextStyle(
-fontWeight: FontWeight.w600,
-),
-),
-),
-],
-),
-],
-),
-),
-),
-),
-);
+                  const SizedBox(height: 18),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        appTranslation().get("no_account"),
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterPage(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          appTranslation().get("sign_up"),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
-
 }

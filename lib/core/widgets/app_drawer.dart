@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/utils/constants/roles.dart';
 import '../../features/cubit/cubit.dart';
 import '../../features/profile/profile_page.dart';
 import '../../features/profile/orders_page.dart';
@@ -91,7 +92,7 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           const Divider(),
-          if (cubit.isAdmin)
+          if (cubit.hasPermission(AppPermissions.accessDashboard))
             ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined,
                   color: Color(0xFF6C4CFF)),

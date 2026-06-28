@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
+import '../../core/utils/constants/constants.dart';
 import '../../core/widgets/product_card.dart';
 import '../products/product_details.dart';
 import '../cubit/cubit.dart';
@@ -21,12 +21,12 @@ class FavoritesPage extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text("Wishlist"),
+            title: Text(appTranslation().get("favorites")),
             actions: [
               if (favorites.isNotEmpty)
                 TextButton(
                   onPressed: () {}, // TODO: Sorting/Filtering
-                  child: const Text("Sort"),
+                  child: Text(appTranslation().get("sort")),
                 ),
             ],
           ),
@@ -73,15 +73,15 @@ class FavoritesPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            "Your wishlist is empty",
+            appTranslation().get("wishlist_empty"),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text("Save items you love here to find them easily later."),
+          Text(appTranslation().get("wishlist_empty_msg")),
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () => cubit.changeBottomNav(0),
-            child: const Text("Explore Products"),
+            child: Text(appTranslation().get("explore_products")),
           ),
         ],
       ),

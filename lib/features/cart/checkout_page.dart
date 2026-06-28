@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/utils/constants/constants.dart';
 import '../../core/network/payment_service.dart';
 import '../cubit/cubit.dart';
 import '../cubit/state.dart';
@@ -45,9 +46,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   double get total => widget.subtotal + shippingCost;
 
   final List<Map<String, dynamic>> _paymentMethods = [
-    {"id": "Stripe", "title": "Credit / Debit Card", "icon": Icons.credit_card},
-    {"id": "Paymob", "title": "Digital Wallet", "icon": Icons.account_balance_wallet},
-    {"id": "Cash", "title": "Cash on Delivery", "icon": Icons.money},
+    {"id": "Stripe", "title": appTranslation().get("credit_card"), "icon": Icons.credit_card},
+    {"id": "Paymob", "title": appTranslation().get("digital_wallet"), "icon": Icons.account_balance_wallet},
+    {"id": "Cash", "title": appTranslation().get("cash_on_delivery"), "icon": Icons.money},
   ];
 
   @override
@@ -69,7 +70,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         padding: const EdgeInsets.all(8.0),
         child: SafeArea(
           child: Scaffold(
-            appBar: AppBar(title: const Text("Checkout")),
+            appBar: AppBar(title: Text(appTranslation().get("checkout"))),
             body: Stepper(
               type: MediaQuery.of(context).size.width < 600
                   ? StepperType.vertical
@@ -97,7 +98,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           onPressed: isProcessing ? null : controls.onStepContinue,
                           child: isProcessing
                             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text(_currentStep == 3 ? "Place Order" : "Continue"),
+                            : Text(_currentStep == 3 ? appTranslation().get("place_order") : appTranslation().get("continue")),
                         ),
                       ),
                       if (_currentStep > 0) ...[
@@ -105,7 +106,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         Expanded(
                           child: OutlinedButton(
                             onPressed: isProcessing ? null : controls.onStepCancel,
-                            child: const Text("Back"),
+                            child: Text(appTranslation().get("back")),
                           ),
                         ),
                       ],
@@ -115,25 +116,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
               },
               steps: [
                 Step(
-                  title: const Text("Address"),
+                  title: Text(appTranslation().get("address")),
                   isActive: _currentStep >= 0,
                   state: _currentStep > 0 ? StepState.complete : StepState.indexed,
                   content: _buildAddressStep(),
                 ),
                 Step(
-                  title: const Text("Shipping"),
+                  title: Text(appTranslation().get("shipping")),
                   isActive: _currentStep >= 1,
                   state: _currentStep > 1 ? StepState.complete : StepState.indexed,
                   content: _buildShippingStep(),
                 ),
                 Step(
-                  title: const Text("Payment"),
+                  title: Text(appTranslation().get("payment")),
                   isActive: _currentStep >= 2,
                   state: _currentStep > 2 ? StepState.complete : StepState.indexed,
                   content: _buildPaymentStep(),
                 ),
                 Step(
-                  title: const Text("Review"),
+                  title: Text(appTranslation().get("review")),
                   isActive: _currentStep >= 3,
                   state: _currentStep > 3 ? StepState.complete : StepState.indexed,
                   content: _buildReviewStep(),
@@ -152,7 +153,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         TextField(
           controller: addressController,
           decoration: InputDecoration(
-            labelText: "Shipping Address",
+            labelText: appTranslation().get("full_address"),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           maxLines: 2,
@@ -161,7 +162,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         TextField(
           controller: phoneController,
           decoration: InputDecoration(
-            labelText: "Phone Number",
+            labelText: appTranslation().get("phone_number"),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           keyboardType: TextInputType.phone,
@@ -175,16 +176,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
       children: [
         _buildChoiceTile(
           id: "Standard",
-          title: "Standard Shipping",
-          subtitle: "3-5 business days • \$10.00",
+          title: appTranslation().get("standard_shipping"),
+          subtitle: "3-5 ${appTranslation().get("business_days")} • \$10.00",
           icon: Icons.local_shipping_outlined,
           groupValue: selectedShippingMethod,
           onChanged: (v) => setState(() => selectedShippingMethod = v!),
         ),
         _buildChoiceTile(
           id: "Express",
-          title: "Express Shipping",
-          subtitle: "1-2 business days • \$25.00",
+          title: appTranslation().get("express_shipping"),
+          subtitle: "1-2 ${appTranslation().get("business_days")} • \$25.00",
           icon: Icons.speed,
           groupValue: selectedShippingMethod,
           onChanged: (v) => setState(() => selectedShippingMethod = v!),
@@ -198,7 +199,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       children: _paymentMethods.map((m) => _buildChoiceTile(
         id: m["id"],
         title: m["title"],
-        subtitle: m["id"] == "Cash" ? "Pay when you receive" : "Secure online payment",
+        subtitle: m["id"] == "Cash" ? appTranslation().get("pay_when_receive") : appTranslation().get("secure_online"),
         icon: m["icon"],
         groupValue: selectedPaymentMethod,
         onChanged: (v) => setState(() => selectedPaymentMethod = v!),
@@ -210,16 +211,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSummarySection("Shipping Address", "${addressController.text}\n${phoneController.text}"),
+        _buildSummarySection(appTranslation().get("full_address"), "${addressController.text}\n${phoneController.text}"),
         const Divider(height: 32),
-        _buildSummarySection("Shipping Method", selectedShippingMethod),
+        _buildSummarySection(appTranslation().get("shipping"), selectedShippingMethod),
         const Divider(height: 32),
-        _buildSummarySection("Payment Method", selectedPaymentMethod),
+        _buildSummarySection(appTranslation().get("payment"), selectedPaymentMethod),
         const Divider(height: 32),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Subtotal"),
+            Text(appTranslation().get("subtotal")),
             Text("\$${widget.subtotal.toStringAsFixed(2)}"),
           ],
         ),
@@ -227,7 +228,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Shipping"),
+            Text(appTranslation().get("shipping")),
             Text("\$${shippingCost.toStringAsFixed(2)}"),
           ],
         ),
@@ -235,7 +236,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Total", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(appTranslation().get("total"), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             Text("\$${total.toStringAsFixed(2)}", style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.primary,
@@ -351,14 +352,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-        title: const Text("Order Placed!"),
-        content: const Text("Your order has been successfully placed. You can track its status in the 'My Orders' section."),
+        title: Text(appTranslation().get("order_placed")),
+        content: Text(appTranslation().get("order_placed_msg")),
         actions: [
           FilledButton(
             onPressed: () {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
-            child: const Text("Continue Shopping"),
+            child: Text(appTranslation().get("continue_shopping")),
           ),
         ],
       ),

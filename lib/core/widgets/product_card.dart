@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../data/models/product_model.dart';
@@ -32,11 +33,15 @@ class ProductCard extends StatelessWidget {
                   children: [
                     AspectRatio(
                       aspectRatio: 1,
-                      child: Image.network(
-                        product.image,
+                      child: CachedNetworkImage(
+                        imageUrl: product.image,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const Center(
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[200],
+                          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                        errorWidget: (context, url, error) => const Center(
                           child: Icon(Icons.broken_image_outlined),
                         ),
                       ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/utils/constants/constants.dart';
 import '../../data/models/product_model.dart';
 import '../cubit/cubit.dart';
 import '../cubit/state.dart';
@@ -54,7 +55,7 @@ class _EditProductState extends State<EditProduct> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text("Edit Product"),
+            title: Text(appTranslation().get("edit_product")),
             centerTitle: true,
           ),
           body: SingleChildScrollView(
@@ -64,17 +65,17 @@ class _EditProductState extends State<EditProduct> {
                 _card(
                   child: Column(
                     children: [
-                      _field(name, "Product name"),
+                      _field(name, appTranslation().get("product_name")),
                       const SizedBox(height: 14),
                       Row(
                         children: [
-                          Expanded(child: _field(price, "Price", keyboard: TextInputType.number)),
+                          Expanded(child: _field(price, appTranslation().get("price"), keyboard: TextInputType.number)),
                           const SizedBox(width: 12),
-                          Expanded(child: _field(stock, "Stock", keyboard: TextInputType.number)),
+                          Expanded(child: _field(stock, appTranslation().get("stock"), keyboard: TextInputType.number)),
                         ],
                       ),
                       const SizedBox(height: 14),
-                      _field(description, "Description", max: 4),
+                      _field(description, appTranslation().get("description"), max: 4),
                     ],
                   ),
                 ),
@@ -98,11 +99,15 @@ class _EditProductState extends State<EditProduct> {
                         border:
                         Border.all(color: Colors.grey.shade300),
                       ),
-                      child: newImage != null
-                          ? Image.file(newImage!, fit: BoxFit.cover)
-                          : Image.network(
-                        widget.product.image,
-                        fit: BoxFit.cover,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: newImage != null
+                            ? Image.file(newImage!, fit: BoxFit.cover)
+                            : Image.network(
+                          widget.product.image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image),
+                        ),
                       ),
                     ),
                   ),
@@ -129,9 +134,9 @@ class _EditProductState extends State<EditProduct> {
                     child: loading
                         ? const CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2)
-                        : const Text(
-                      "Save Changes",
-                      style: TextStyle(
+                        : Text(
+                      appTranslation().get("save_changes"),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),

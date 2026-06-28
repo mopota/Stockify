@@ -1,6 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/constants/constants.dart';
+import '../cubit/cubit.dart';
+import '../../core/utils/constants/roles.dart';
 
 class OrderDetailsPage extends StatelessWidget {
   final String orderId;
@@ -14,14 +18,21 @@ class OrderDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cubit = AppCubit.get(context);
     final createdAt = (orderData['createdAt'] as Timestamp?)?.toDate();
     final items = orderData['items'] as List;
     final status = orderData['status'] ?? 'Pending';
+    final bool canManage = cubit.hasPermission(AppPermissions.manageOrders);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Order Details"),
+        title: Text(appTranslation().get("order_details")),
         actions: [
+          if (canManage)
+            IconButton(
+              onPressed: () => _showStatusDialog(context, status),
+              icon: const Icon(Icons.edit_note),
+            ),
           IconButton(
             onPressed: () {}, // TODO: Download Invoice
             icon: const Icon(Icons.download_outlined),
@@ -40,7 +51,7 @@ class OrderDetailsPage extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Order ID".toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+                    Text(appTranslation().get("order_id").toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
                     Text("#$orderId", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                   ],
                 ),
@@ -48,7 +59,7 @@ class OrderDetailsPage extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text("Date".toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+                      Text(appTranslation().get("date").toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
                       Text(DateFormat('dd MMM yyyy').format(createdAt), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -57,7 +68,7 @@ class OrderDetailsPage extends StatelessWidget {
             const SizedBox(height: 32),
 
             // 2. Timeline Status
-            Text("Order Status".toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+            Text(appTranslation().get("order_status").toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 16),
             _buildTimeline(context, status),
 
@@ -66,20 +77,20 @@ class OrderDetailsPage extends StatelessWidget {
             const SizedBox(height: 32),
 
             // 3. Shipping Address
-            _buildSectionHeader(context, "Shipping Address", Icons.location_on_outlined),
+            _buildSectionHeader(context, appTranslation().get("shipping_addresses"), Icons.location_on_outlined),
             const SizedBox(height: 12),
             Text(orderData['userName'] ?? "User", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(orderData['address'] ?? "No address provided"),
-            Text(orderData['phone'] ?? "No phone"),
+            Text(orderData['address'] ?? appTranslation().get("no_address_provided")),
+            Text(orderData['phone'] ?? appTranslation().get("no_phone")),
 
             const SizedBox(height: 32),
 
             // 4. Payment Method
-            _buildSectionHeader(context, "Payment Method", Icons.payment_outlined),
+            _buildSectionHeader(context, appTranslation().get("payment_methods"), Icons.payment_outlined),
             const SizedBox(height: 12),
             Text(orderData['paymentMethod'] ?? "Cash"),
             Text(
-              orderData['paymentStatus'] ?? "Pending",
+              appTranslation().get((orderData['paymentStatus'] ?? "pending").toString().toLowerCase()),
               style: TextStyle(
                 color: (orderData['paymentStatus']?.toString().toLowerCase() == 'paid') ? Colors.green : Colors.orange,
                 fontWeight: FontWeight.bold,
@@ -92,7 +103,7 @@ class OrderDetailsPage extends StatelessWidget {
             const SizedBox(height: 32),
 
             // 5. Items List
-            _buildSectionHeader(context, "Items", Icons.shopping_bag_outlined),
+            _buildSectionHeader(context, appTranslation().get("products"), Icons.shopping_bag_outlined),
             const SizedBox(height: 16),
             ...items.map((item) => _buildItemRow(context, item)),
 
@@ -105,6 +116,29 @@ class OrderDetailsPage extends StatelessWidget {
 
             const SizedBox(height: 48),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showStatusDialog(BuildContext context, String currentStatus) {
+    final statuses = ["Pending", "Confirmed", "Processing", "Shipped", "Delivered", "Cancelled"];
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(appTranslation().get("update_order_status")),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: statuses.map((s) => ListTile(
+            title: Text(appTranslation().get(s.toLowerCase())),
+            onTap: () {
+              AppCubit.get(context).updateOrderStatus(orderId, s);
+              Navigator.pop(context);
+              Navigator.pop(context); // Go back to refresh data
+            },
+            selected: s == currentStatus,
+          )).toList(),
         ),
       ),
     );
@@ -129,7 +163,7 @@ class OrderDetailsPage extends StatelessWidget {
   Widget _buildTimeline(BuildContext context, String currentStatus) {
     final statuses = ["Pending", "Shipped", "Delivered"];
     int currentIndex = statuses.indexWhere((s) => s.toLowerCase() == currentStatus.toLowerCase());
-    if (currentIndex == -1 && currentStatus.toLowerCase() == 'cancelled') return const Text("This order was cancelled", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold));
+    if (currentIndex == -1 && currentStatus.toLowerCase() == 'cancelled') return Text(appTranslation().get("order_cancelled_msg"), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold));
     if (currentIndex == -1) currentIndex = 0;
 
     return Row(
@@ -148,7 +182,7 @@ class OrderDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    statuses[index],
+                    appTranslation().get(statuses[index].toLowerCase()),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: isCompleted ? FontWeight.bold : FontWeight.normal,
@@ -179,12 +213,12 @@ class OrderDetailsPage extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              item['image'],
+            child: CachedNetworkImage(
+              imageUrl: item['image'],
               width: 70,
               height: 70,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 70),
+              errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 70),
             ),
           ),
           const SizedBox(width: 16),
@@ -193,7 +227,7 @@ class OrderDetailsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text("Qty: ${item['quantity']}", style: Theme.of(context).textTheme.bodySmall),
+                Text("${appTranslation().get("qty")}: ${item['quantity']}", style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
@@ -213,11 +247,11 @@ class OrderDetailsPage extends StatelessWidget {
 
     return Column(
       children: [
-        _buildPriceRow(context, "Subtotal", "\$${subtotal.toStringAsFixed(2)}"),
+        _buildPriceRow(context, appTranslation().get("subtotal"), "\$${subtotal.toStringAsFixed(2)}"),
         const SizedBox(height: 8),
-        _buildPriceRow(context, "Shipping", "\$${shipping.toStringAsFixed(2)}"),
+        _buildPriceRow(context, appTranslation().get("shipping"), "\$${shipping.toStringAsFixed(2)}"),
         const SizedBox(height: 16),
-        _buildPriceRow(context, "Total", "\$${total.toStringAsFixed(2)}", isTotal: true),
+        _buildPriceRow(context, appTranslation().get("total"), "\$${total.toStringAsFixed(2)}", isTotal: true),
       ],
     );
   }

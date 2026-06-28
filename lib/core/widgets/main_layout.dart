@@ -7,6 +7,7 @@ import '../../features/cubit/state.dart';
 import '../../features/favorites/favorites_page.dart';
 import '../../features/products/home_page.dart';
 import '../../features/profile/profile_page.dart';
+import '../utils/constants/constants.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -26,7 +27,6 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppCubit, AppStates>(
-      buildWhen: (p, c) => c is AppBottomNavChangedState || c is AppCartChangedState || c is AppFavoriteChangedState,
       builder: (context, state) {
         final cubit = AppCubit.get(context);
 
@@ -39,10 +39,10 @@ class _MainLayoutState extends State<MainLayout> {
             selectedIndex: cubit.currentIndex,
             onDestinationSelected: (index) => cubit.changeBottomNav(index),
             destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: "Home",
+              NavigationDestination(
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home),
+                label: appTranslation().get("home"),
               ),
               NavigationDestination(
                 icon: Badge(
@@ -51,7 +51,7 @@ class _MainLayoutState extends State<MainLayout> {
                   child: const Icon(Icons.favorite_border),
                 ),
                 selectedIcon: const Icon(Icons.favorite),
-                label: "Wishlist",
+                label: appTranslation().get("favorites"),
               ),
               NavigationDestination(
                 icon: Badge(
@@ -60,12 +60,12 @@ class _MainLayoutState extends State<MainLayout> {
                   child: const Icon(Icons.shopping_cart_outlined),
                 ),
                 selectedIcon: const Icon(Icons.shopping_cart),
-                label: "Cart",
+                label: appTranslation().get("cart"),
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: "Profile",
+              NavigationDestination(
+                icon: const Icon(Icons.person_outline),
+                selectedIcon: const Icon(Icons.person),
+                label: appTranslation().get("profile"),
               ),
             ],
           ),

@@ -97,6 +97,13 @@ class AppUpdateProfileErrorState extends AppStates {
   AppUpdateProfileErrorState(this.message);
 }
 
+class AppChangePasswordLoadingState extends AppStates {}
+class AppChangePasswordSuccessState extends AppStates {}
+class AppChangePasswordErrorState extends AppStates {
+  final String message;
+  AppChangePasswordErrorState(this.message);
+}
+
 class AppLanguageChangedState extends AppStates {}
 class AppLanguageErrorState extends AppStates {
   final String message;

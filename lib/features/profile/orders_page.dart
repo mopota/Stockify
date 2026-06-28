@@ -1,7 +1,9 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/utils/constants/constants.dart';
 import 'order_details_page.dart';
 
 class OrdersPage extends StatefulWidget {
@@ -21,10 +23,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Orders"),
+        title: Text(appTranslation().get("my_orders")),
       ),
       body: uid == null 
-          ? const Center(child: Text("Please login to see orders"))
+          ? Center(child: Text(appTranslation().get("please_login_to_see_orders")))
           : Column(
               children: [
                 _buildStatusFilter(),
@@ -51,7 +53,7 @@ class _OrdersPageState extends State<OrdersPage> {
                             children: [
                               Icon(Icons.shopping_bag_outlined, size: 80, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5)),
                               const SizedBox(height: 16),
-                              Text("No orders yet", style: Theme.of(context).textTheme.titleMedium),
+                              Text(appTranslation().get("no_orders_yet"), style: Theme.of(context).textTheme.titleMedium),
                             ],
                           ),
                         );
@@ -87,7 +89,7 @@ class _OrdersPageState extends State<OrdersPage> {
           final status = statuses[i];
           final isSelected = _statusFilter == status;
           return ChoiceChip(
-            label: Text(status),
+            label: Text(appTranslation().get(status.toLowerCase())),
             selected: isSelected,
             onSelected: (selected) {
               if (selected) setState(() => _statusFilter = status);
@@ -123,7 +125,7 @@ class _OrdersPageState extends State<OrdersPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Order #$orderId".toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.2)),
+                      Text("${appTranslation().get("order_id")}$orderId".toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.2)),
                       if (createdAt != null)
                         Text(DateFormat('dd MMM yyyy, HH:mm').format(createdAt), style: Theme.of(context).textTheme.bodySmall),
                     ],
@@ -138,13 +140,17 @@ class _OrdersPageState extends State<OrdersPage> {
                     padding: const EdgeInsets.only(right: 8),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(item['image'], width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace)=>const Icon(Icons.image)),
+                      child: CachedNetworkImage(
+                        imageUrl: item['image'], 
+                        width: 40, height: 40, fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => const Icon(Icons.image),
+                      ),
                     ),
                   )),
                   if (items.length > 3)
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Text("+${items.length - 3}", style: const TextStyle(fontSize: 12)),
                     ),
                 ],
@@ -153,7 +159,7 @@ class _OrdersPageState extends State<OrdersPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("${items.length} Items", style: const TextStyle(fontWeight: FontWeight.w500)),
+                  Text(appTranslation().get("items_count").replaceFirst("{}", items.length.toString()), style: const TextStyle(fontWeight: FontWeight.w500)),
                   Text(
                     "\$${total.toStringAsFixed(2)}",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -186,7 +192,7 @@ class _OrdersPageState extends State<OrdersPage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status,
+        appTranslation().get(status.toLowerCase()),
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );

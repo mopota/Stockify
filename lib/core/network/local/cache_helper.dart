@@ -29,4 +29,8 @@ class CacheHelper {
     final prefs = sl<SharedPreferences>();
     return await prefs.remove(key);
   }
+
+  static Future<bool> userSawOnboarding() async {
+    return getData(key: "sawOnboarding") ?? false;
+  }
 }

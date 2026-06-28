@@ -1,6 +1,9 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../core/utils/constants/constants.dart';
+import '../../core/utils/constants/roles.dart';
 import '../../data/models/product_model.dart';
 import '../../core/widgets/product_card.dart';
 import '../cubit/cubit.dart';
@@ -19,8 +22,7 @@ class ProductDetails extends StatelessWidget {
     final cubit = AppCubit.get(context);
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
     final isOwner = currentUid == product.ownerId;
-    final isAdmin = cubit.isAdmin;
-    final canDelete = isOwner || isAdmin;
+    final canDelete = isOwner || cubit.hasPermission(AppPermissions.deleteProducts);
 
     return Scaffold(
       body: CustomScrollView(
@@ -65,10 +67,11 @@ class ProductDetails extends StatelessWidget {
             flexibleSpace: FlexibleSpaceBar(
               background: Hero(
                 tag: 'product_${product.id}',
-                child: Image.network(
-                  product.image,
+                child: CachedNetworkImage(
+                  imageUrl: product.image,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image, size: 100)),
+                  placeholder: (context, url) => Container(color: Colors.grey[200]),
+                  errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image, size: 100)),
                 ),
               ),
             ),
@@ -148,7 +151,7 @@ class ProductDetails extends StatelessWidget {
 
                   // 5. Description
                   Text(
-                    "Description",
+                    appTranslation().get("description"),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -176,7 +179,7 @@ class ProductDetails extends StatelessWidget {
 
                   // 8. Similar Products (Recommended)
                   Text(
-                    "You might also like",
+                    appTranslation().get("you_might_also_like"),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
@@ -211,7 +214,10 @@ class ProductDetails extends StatelessWidget {
                       ? () {
                           cubit.addProductToCart(product);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Added to cart!"), duration: Duration(seconds: 1)),
+                            SnackBar(
+                              content: Text(appTranslation().get("added_to_cart")),
+                              duration: const Duration(seconds: 1),
+                            ),
                           );
                         }
                       : null,
@@ -219,7 +225,7 @@ class ProductDetails extends StatelessWidget {
                     minimumSize: const Size(double.infinity, 54),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text("Add to Cart"),
+                  child: Text(appTranslation().get("add_to_cart")),
                 ),
               ),
               const SizedBox(width: 16),
@@ -244,7 +250,7 @@ class ProductDetails extends StatelessWidget {
                     minimumSize: const Size(double.infinity, 54),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text("Buy Now"),
+                  child: Text(appTranslation().get("buy_now")),
                 ),
               ),
             ],
@@ -259,13 +265,13 @@ class ProductDetails extends StatelessWidget {
     String label;
     if (stock <= 0) {
       color = Theme.of(context).colorScheme.error;
-      label = "Out of Stock";
+      label = appTranslation().get("out_of_stock");
     } else if (stock < 5) {
       color = Colors.orange;
-      label = "Only $stock left";
+      label = appTranslation().get("only_left").replaceFirst("{}", stock.toString());
     } else {
       color = Colors.green;
-      label = "In Stock";
+      label = appTranslation().get("in_stock");
     }
 
     return Container(
@@ -301,12 +307,12 @@ class ProductDetails extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Sold by", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(appTranslation().get("sold_by"), style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 Text(ownerName, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
             const Spacer(),
-            TextButton(onPressed: () {}, child: const Text("View Store")),
+            TextButton(onPressed: () {}, child: Text(appTranslation().get("view_store"))),
           ],
         );
       },
@@ -318,7 +324,7 @@ class ProductDetails extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          "Reviews",
+          appTranslation().get("reviews"),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -334,7 +340,7 @@ class ProductDetails extends StatelessWidget {
             }
             return TextButton(
               onPressed: () => _showReviewSheet(context, cubit, product.id),
-              child: const Text("Write a review"),
+              child: Text(appTranslation().get("write_review")),
             );
           },
         ),
@@ -352,9 +358,12 @@ class ProductDetails extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text("No reviews yet. Be the first to review!", style: TextStyle(color: Colors.grey, fontSize: 14)),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              appTranslation().get("no_reviews"),
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
           );
         }
         return Column(
@@ -404,11 +413,11 @@ class ProductDetails extends StatelessWidget {
                             initialRating: (data['rating'] as num).toDouble(),
                             initialComment: data['comment'],
                           ),
-                          child: const Text("Edit"),
+                          child: Text(appTranslation().get("edit")),
                         ),
                         TextButton(
                           onPressed: () => cubit.deleteProductReview(productId: productId, reviewId: reviewId),
-                          child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                          child: Text(appTranslation().get("delete"), style: const TextStyle(color: Colors.red)),
                         ),
                       ],
                     ),
@@ -453,14 +462,14 @@ class ProductDetails extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Delete Product"),
-        content: const Text("Are you sure you want to permanently delete this product?"),
+        title: Text(appTranslation().get("delete_product")),
+        content: Text(appTranslation().get("delete_confirm")),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(appTranslation().get("cancel"))),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text("Delete"),
+            child: Text(appTranslation().get("delete")),
           ),
         ],
       ),
@@ -492,8 +501,10 @@ class ProductDetails extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(isEditing ? "Edit Review" : "Rate Product",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                isEditing ? appTranslation().get("edit_review") : appTranslation().get("rate_product"),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -512,7 +523,7 @@ class ProductDetails extends StatelessWidget {
               TextField(
                 controller: commentController,
                 decoration: InputDecoration(
-                  hintText: "Share your experience with this product...",
+                  hintText: appTranslation().get("share_exp"),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 maxLines: 4,
@@ -546,7 +557,7 @@ class ProductDetails extends StatelessWidget {
                       }
                     }
                   },
-                  child: Text(isEditing ? "Update Review" : "Submit Review"),
+                  child: Text(isEditing ? appTranslation().get("update_review") : appTranslation().get("submit_review")),
                 ),
               ),
             ],
