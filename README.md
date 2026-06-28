@@ -1,23 +1,6 @@
 ```md
 # 📦 Stockify - Inventory & Marketplace Management App
 
-<p align="center">
-  <img src="assets/logo.png" width="150" alt="Stockify Logo"/>
-</p>
-
-<p align="center">
-A modern Inventory & Marketplace Management application built with <b>Flutter</b> and <b>Firebase</b>.
-</p>
-
-<p align="center">
-<img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter"/>
-<img src="https://img.shields.io/badge/Firebase-Backend-orange?logo=firebase"/>
-<img src="https://img.shields.io/badge/Material%203-UI-green"/>
-<img src="https://img.shields.io/badge/License-MIT-success"/>
-</p>
-
----
-
 # ✨ Features
 
 ## 🔐 Authentication
@@ -309,7 +292,7 @@ This project is licensed under the **MIT License**.
 GitHub
 
 ```
-https://github.com/your-username
+https://github.com/mopota
 ```
 
 ---
